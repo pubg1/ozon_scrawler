@@ -9,10 +9,18 @@ class OzonScraper:
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': '*/*',
             'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
+            'Referer': 'https://www.ozon.ru/',
+            'Origin': 'https://www.ozon.ru',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
         })
 
     def get_product_info(self, product_id: str) -> Optional[Dict]:
@@ -28,7 +36,12 @@ class OzonScraper:
         try:
             url = f"https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=/product/-{product_id}/"
             
-            response = self.session.get(url, timeout=30)
+            headers = {
+                'x-o3-app-name': 'dweb',
+                'x-o3-app-version': 'release/2024-12-18.1',
+            }
+            
+            response = self.session.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
             data = response.json()
