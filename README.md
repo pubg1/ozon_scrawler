@@ -1,6 +1,6 @@
 # Ozon商品信息爬虫
 
-一个用于爬取Ozon平台商品信息的Python工具。
+一个用于爬取Ozon平台商品信息的Python工具，提供Web界面和命令行两种使用方式。
 
 ## 功能特性
 
@@ -15,7 +15,9 @@
   - 卖家信息
   - 库存状态
 - 支持将商品信息保存为JSON格式
+- **美观的Web界面** - 一键爬取，实时显示结果
 - 交互式命令行界面
+- 历史记录查看
 
 ## 安装
 
@@ -33,7 +35,28 @@ pip install -r requirements.txt
 
 ## 使用方法
 
-### 命令行交互模式
+### 方式一: Web界面（推荐）
+
+1. 启动Web服务器：
+
+```bash
+python app.py
+```
+
+2. 打开浏览器访问：`http://localhost:5000`
+
+3. 在输入框中输入商品ID，点击"开始爬取"按钮
+
+4. 查看商品信息，可下载JSON文件或查看历史记录
+
+**Web界面特点：**
+- 美观的现代化UI设计
+- 实时显示商品信息（标题、价格、图片、评分等）
+- 一键下载JSON数据
+- 查看历史爬取记录
+- 支持远程访问（修改`app.py`中的host参数）
+
+### 方式二: 命令行交互模式
 
 ```bash
 python ozon_scraper.py
@@ -104,8 +127,7 @@ if product_info:
 
 - Python 3.7+
 - requests
-- beautifulsoup4
-- lxml
+- flask
 
 ## 许可
 

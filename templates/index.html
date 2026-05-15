@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ozon商品信息爬虫</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">
+                <i class="fas fa-shopping-cart text-blue-600"></i>
+                Ozon商品信息爬虫
+            </h1>
+            <p class="text-gray-600">输入商品ID，一键获取详细信息</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="productId">
+                    <i class="fas fa-barcode mr-2"></i>商品ID
+                </label>
+                <div class="flex gap-3">
+                    <input 
+                        type="text" 
+                        id="productId" 
+                        placeholder="例如: 123456789"
+                        class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button 
+                        onclick="scrapeProduct()"
+                        id="scrapeBtn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition duration-200 flex items-center gap-2"
+                    >
+                        <i class="fas fa-download"></i>
+                        <span id="btnText">开始爬取</span>
+                    </button>
+                </div>
+                <p class="text-sm text-gray-500 mt-2">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    提示: 从Ozon商品URL中获取ID，例如 https://www.ozon.ru/product/-<strong>123456789</strong>/
+                </p>
+            </div>
+
+            <div id="alert" class="hidden mb-4 p-4 rounded-lg"></div>
+
+            <div id="result" class="hidden fade-in">
+                <div class="border-t pt-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">
+                        <i class="fas fa-box-open mr-2"></i>商品信息
+                    </h2>
+                    
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-600 mb-1">商品标题</h3>
+                                <p id="title" class="text-lg font-medium text-gray-800"></p>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-600 mb-1">价格</h3>
+                                    <p id="price" class="text-2xl font-bold text-green-600"></p>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-600 mb-1">原价</h3>
+                                    <p id="oldPrice" class="text-lg text-gray-500 line-through"></p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-600 mb-1">评分</h3>
+                                    <p id="rating" class="text-lg font-medium text-yellow-600">
+                                        <i class="fas fa-star"></i>
+                                    </p>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-gray-600 mb-1">评论数</h3>
+                                    <p id="reviews" class="text-lg font-medium text-gray-700"></p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-600 mb-1">卖家</h3>
+                                <p id="seller" class="text-lg text-gray-800"></p>
+                            </div>
+
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-600 mb-1">库存状态</h3>
+                                <p id="availability" class="text-lg font-medium"></p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-600 mb-2">商品图片</h3>
+                                <div id="images" class="grid grid-cols-2 gap-2"></div>
+                            </div>
+
+                            <div>
+                                <h3 class="text-sm font-semibold text-gray-600 mb-1">商品链接</h3>
+                                <a id="url" href="#" target="_blank" class="text-blue-600 hover:text-blue-800 break-all">
+                                    <i class="fas fa-external-link-alt mr-1"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <h3 class="text-sm font-semibold text-gray-600 mb-2">商品特性</h3>
+                        <div id="characteristics" class="bg-gray-50 rounded-lg p-4 space-y-2"></div>
+                    </div>
+
+                    <div class="mt-6 flex gap-3">
+                        <button 
+                            onclick="downloadJSON()"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-200"
+                        >
+                            <i class="fas fa-file-download mr-2"></i>下载JSON
+                        </button>
+                        <button 
+                            onclick="clearResult()"
+                            class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition duration-200"
+                        >
+                            <i class="fas fa-times mr-2"></i>清除结果
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-history mr-2"></i>历史记录
+            </h2>
+            <div id="history" class="space-y-2">
+                <p class="text-gray-500 text-center py-4">加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let currentFilename = null;
+
+        function showAlert(message, type = 'error') {
+            const alert = document.getElementById('alert');
+            alert.className = `p-4 rounded-lg ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
+            alert.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'} mr-2"></i>${message}`;
+            alert.classList.remove('hidden');
+            setTimeout(() => alert.classList.add('hidden'), 5000);
+        }
+
+        async function scrapeProduct() {
+            const productId = document.getElementById('productId').value.trim();
+            
+            if (!productId) {
+                showAlert('请输入商品ID');
+                return;
+            }
+
+            const btn = document.getElementById('scrapeBtn');
+            const btnText = document.getElementById('btnText');
+            
+            btn.disabled = true;
+            btnText.innerHTML = '<span class="loading"></span>';
+
+            try {
+                const response = await fetch('/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ product_id: productId })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    currentData = result.data;
+                    currentFilename = result.filename;
+                    displayResult(result.data);
+                    showAlert('爬取成功！', 'success');
+                    loadHistory();
+                } else {
+                    showAlert(result.error || '爬取失败');
+                }
+            } catch (error) {
+                showAlert('网络错误: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = '开始爬取';
+            }
+        }
+
+        function displayResult(data) {
+            document.getElementById('title').textContent = data.title || '未知';
+            document.getElementById('price').textContent = data.price || 'N/A';
+            document.getElementById('oldPrice').textContent = data.old_price || 'N/A';
+            document.getElementById('rating').innerHTML = `<i class="fas fa-star"></i> ${data.rating || 'N/A'}`;
+            document.getElementById('reviews').textContent = data.reviews_count || '0';
+            document.getElementById('seller').textContent = data.seller || '未知';
+            
+            const availability = document.getElementById('availability');
+            availability.textContent = data.availability || '未知';
+            availability.className = `text-lg font-medium ${data.availability === '有货' ? 'text-green-600' : 'text-red-600'}`;
+
+            const url = document.getElementById('url');
+            url.href = data.url;
+            url.textContent = data.url;
+
+            const imagesDiv = document.getElementById('images');
+            imagesDiv.innerHTML = '';
+            if (data.images && data.images.length > 0) {
+                data.images.slice(0, 4).forEach(img => {
+                    imagesDiv.innerHTML += `<img src="${img}" class="w-full h-32 object-cover rounded-lg shadow" alt="商品图片">`;
+                });
+            } else {
+                imagesDiv.innerHTML = '<p class="text-gray-500">无图片</p>';
+            }
+
+            const charsDiv = document.getElementById('characteristics');
+            charsDiv.innerHTML = '';
+            if (data.characteristics && Object.keys(data.characteristics).length > 0) {
+                for (const [key, value] of Object.entries(data.characteristics)) {
+                    charsDiv.innerHTML += `
+                        <div class="flex justify-between py-1 border-b border-gray-200">
+                            <span class="font-medium text-gray-700">${key}:</span>
+                            <span class="text-gray-600">${value}</span>
+                        </div>
+                    `;
+                }
+            } else {
+                charsDiv.innerHTML = '<p class="text-gray-500">无特性信息</p>';
+            }
+
+            document.getElementById('result').classList.remove('hidden');
+        }
+
+        function downloadJSON() {
+            if (!currentData) return;
+            
+            const dataStr = JSON.stringify(currentData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `product_${currentData.product_id}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function clearResult() {
+            document.getElementById('result').classList.add('hidden');
+            document.getElementById('productId').value = '';
+            currentData = null;
+            currentFilename = null;
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch('/history');
+                const files = await response.json();
+                
+                const historyDiv = document.getElementById('history');
+                
+                if (files.length === 0) {
+                    historyDiv.innerHTML = '<p class="text-gray-500 text-center py-4">暂无历史记录</p>';
+                    return;
+                }
+
+                historyDiv.innerHTML = files.map(file => `
+                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800">
+                                <i class="fas fa-file-alt mr-2 text-blue-600"></i>${file.filename}
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                ${file.modified} • ${(file.size / 1024).toFixed(2)} KB
+                            </p>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('加载历史记录失败:', error);
+            }
+        }
+
+        document.getElementById('productId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') scrapeProduct();
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>
