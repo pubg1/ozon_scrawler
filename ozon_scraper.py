@@ -10,19 +10,34 @@ class OzonScraper:
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
             'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Referer': 'https://www.ozon.ru/',
-            'Origin': 'https://www.ozon.ru',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin',
             'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"Windows"',
+            'DNT': '1',
         })
+        self.initialized = False
+    
+    def _initialize_session(self):
+        """访问首页建立session和cookie"""
+        if self.initialized:
+            return
+        
+        try:
+            headers = {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+            }
+            response = self.session.get('https://www.ozon.ru/', headers=headers, timeout=15)
+            time.sleep(2)
+            self.initialized = True
+        except Exception as e:
+            print(f"初始化session失败: {e}")
 
     def get_product_info(self, product_id: str) -> Optional[Dict]:
         """
@@ -35,15 +50,24 @@ class OzonScraper:
             包含商品信息的字典，如果失败返回None
         """
         try:
+            self._initialize_session()
+            
+            time.sleep(1)
+            
             url = f"https://www.ozon.ru/product/-{product_id}/"
             
             headers = {
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Cache-Control': 'max-age=0',
+                'Referer': 'https://www.ozon.ru/',
                 'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
             }
             
-            response = self.session.get(url, headers=headers, timeout=30)
+            response = self.session.get(url, headers=headers, timeout=30, allow_redirects=True)
             response.raise_for_status()
             
             html_content = response.text
