@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+import re
 from typing import Dict, Optional
 
 
@@ -34,17 +35,24 @@ class OzonScraper:
             包含商品信息的字典，如果失败返回None
         """
         try:
-            url = f"https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=/product/-{product_id}/"
+            url = f"https://www.ozon.ru/product/-{product_id}/"
             
             headers = {
-                'x-o3-app-name': 'dweb',
-                'x-o3-app-version': 'release/2024-12-18.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Cache-Control': 'max-age=0',
+                'Upgrade-Insecure-Requests': '1',
             }
             
             response = self.session.get(url, headers=headers, timeout=30)
             response.raise_for_status()
             
-            data = response.json()
+            html_content = response.text
+            
+            data = self._extract_json_from_html(html_content)
+            
+            if not data:
+                print("无法从页面提取数据")
+                return None
             
             product_info = self._parse_product_data(data, product_id)
             return product_info
@@ -58,9 +66,44 @@ class OzonScraper:
         except Exception as e:
             print(f"发生错误: {e}")
             return None
+    
+    def _extract_json_from_html(self, html: str) -> Optional[Dict]:
+        """从HTML中提取嵌入的JSON数据"""
+        try:
+            pattern = r'<script[^>]*>\s*window\.__NUXT__\s*=\s*({.*?});?\s*</script>'
+            match = re.search(pattern, html, re.DOTALL)
+            
+            if match:
+                json_str = match.group(1)
+                data = json.loads(json_str)
+                return data
+            
+            pattern2 = r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>'
+            match2 = re.search(pattern2, html, re.DOTALL)
+            
+            if match2:
+                json_str = match2.group(1)
+                data = json.loads(json_str)
+                return data
+            
+            pattern3 = r'"layout":\s*(\[.*?\])'
+            match3 = re.search(pattern3, html, re.DOTALL)
+            
+            if match3:
+                try:
+                    layout_data = json.loads(match3.group(1))
+                    return {'layout': layout_data}
+                except:
+                    pass
+            
+            return None
+            
+        except Exception as e:
+            print(f"提取JSON数据时出错: {e}")
+            return None
 
     def _parse_product_data(self, data: Dict, product_id: str) -> Dict:
-        """解析API返回的商品数据"""
+        """解析页面数据"""
         product_info = {
             'product_id': product_id,
             'url': f"https://www.ozon.ru/product/-{product_id}/",
@@ -79,42 +122,50 @@ class OzonScraper:
         try:
             layout_data = data.get('layout', [])
             
+            if isinstance(data, dict) and 'props' in data:
+                page_props = data.get('props', {}).get('pageProps', {})
+                if 'layout' in page_props:
+                    layout_data = page_props.get('layout', [])
+            
             for widget in layout_data:
                 if not isinstance(widget, dict):
                     continue
                     
                 widget_state = widget.get('state', {})
                 
-                if 'webGallery' in widget.get('component', ''):
+                component_name = widget.get('component', '')
+                
+                if 'Gallery' in component_name or 'webGallery' in component_name:
                     images = widget_state.get('images', [])
-                    product_info['images'] = [img.get('src', '') for img in images if img.get('src')]
+                    product_info['images'] = [img.get('src', '') or img.get('link', '') for img in images if img.get('src') or img.get('link')]
                 
-                if 'webProductHeading' in widget.get('component', ''):
-                    product_info['title'] = widget_state.get('title', '')
-                    product_info['rating'] = str(widget_state.get('rating', ''))
-                    product_info['reviews_count'] = str(widget_state.get('reviewsCount', ''))
+                if 'Heading' in component_name or 'webProductHeading' in component_name:
+                    product_info['title'] = widget_state.get('title', '') or widget_state.get('name', '')
+                    product_info['rating'] = str(widget_state.get('rating', '') or widget_state.get('reviewRating', ''))
+                    product_info['reviews_count'] = str(widget_state.get('reviewsCount', '') or widget_state.get('reviews', ''))
                 
-                if 'webPrice' in widget.get('component', ''):
-                    price_data = widget_state.get('price', {})
-                    product_info['price'] = price_data.get('price', '')
-                    product_info['old_price'] = price_data.get('originalPrice', '')
+                if 'Price' in component_name or 'webPrice' in component_name:
+                    price_data = widget_state.get('price', widget_state)
+                    product_info['price'] = price_data.get('price', '') or price_data.get('currentPrice', '')
+                    product_info['old_price'] = price_data.get('originalPrice', '') or price_data.get('oldPrice', '')
                 
-                if 'webDescription' in widget.get('component', ''):
-                    product_info['description'] = widget_state.get('text', '')
+                if 'Description' in component_name or 'webDescription' in component_name:
+                    product_info['description'] = widget_state.get('text', '') or widget_state.get('description', '')
                 
-                if 'webCharacteristics' in widget.get('component', ''):
+                if 'Characteristics' in component_name or 'webCharacteristics' in component_name:
                     chars = widget_state.get('characteristics', [])
                     for char in chars:
-                        key = char.get('key', '')
+                        key = char.get('key', '') or char.get('name', '')
                         values = char.get('values', [])
                         if key and values:
-                            product_info['characteristics'][key] = ', '.join([v.get('text', '') for v in values])
+                            product_info['characteristics'][key] = ', '.join([v.get('text', '') or str(v.get('value', '')) for v in values])
                 
-                if 'webSeller' in widget.get('component', ''):
-                    product_info['seller'] = widget_state.get('title', '')
+                if 'Seller' in component_name or 'webSeller' in component_name:
+                    product_info['seller'] = widget_state.get('title', '') or widget_state.get('name', '')
                 
-                if 'webAddToCart' in widget.get('component', ''):
-                    product_info['availability'] = '有货' if widget_state.get('isAvailable') else '无货'
+                if 'AddToCart' in component_name or 'webAddToCart' in component_name:
+                    is_available = widget_state.get('isAvailable', widget_state.get('available', False))
+                    product_info['availability'] = '有货' if is_available else '无货'
 
         except Exception as e:
             print(f"解析数据时出错: {e}")
