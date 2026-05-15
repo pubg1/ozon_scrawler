@@ -68,6 +68,13 @@ class OzonScraper:
             }
             
             response = self.session.get(url, headers=headers, timeout=30, allow_redirects=True)
+            
+            if response.status_code == 403:
+                print(f"收到403错误，保存响应内容到debug_403.html")
+                with open('debug_403.html', 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+                print(f"响应头: {dict(response.headers)}")
+            
             response.raise_for_status()
             
             html_content = response.text
